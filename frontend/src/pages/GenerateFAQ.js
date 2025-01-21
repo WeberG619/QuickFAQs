@@ -3,20 +3,52 @@ import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import toast from 'react-hot-toast';
 
+const CATEGORIES = ['Product', 'Service', 'Technical', 'Support', 'Other'];
+
 function GenerateFAQ() {
-  const [companyName, setCompanyName] = useState('');
-  const [productDetails, setProductDetails] = useState('');
+  const [formData, setFormData] = useState({
+    companyName: '',
+    productDetails: '',
+    category: 'Other',
+    tags: []
+  });
+  const [tagInput, setTagInput] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+
+  const handleChange = (e) => {
+    setFormData({
+      ...formData,
+      [e.target.name]: e.target.value
+    });
+  };
+
+  const handleTagInputKeyDown = (e) => {
+    if (e.key === 'Enter' || e.key === ',') {
+      e.preventDefault();
+      const tag = tagInput.trim().toLowerCase();
+      if (tag && !formData.tags.includes(tag)) {
+        setFormData({
+          ...formData,
+          tags: [...formData.tags, tag]
+        });
+      }
+      setTagInput('');
+    }
+  };
+
+  const removeTag = (tagToRemove) => {
+    setFormData({
+      ...formData,
+      tags: formData.tags.filter(tag => tag !== tagToRemove)
+    });
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
       setLoading(true);
-      const response = await api.post('/faq/generate', {
-        companyName,
-        productDetails,
-      });
+      const response = await api.post('/faq/generate', formData);
 
       toast.success('FAQ generated successfully!');
       navigate('/dashboard', { 
@@ -57,14 +89,76 @@ function GenerateFAQ() {
               <div className="mt-1">
                 <input
                   type="text"
-                  name="company"
+                  name="companyName"
                   id="company"
                   required
                   className="input"
                   placeholder="e.g., Acme Corporation"
-                  value={companyName}
-                  onChange={(e) => setCompanyName(e.target.value)}
+                  value={formData.companyName}
+                  onChange={handleChange}
                 />
+              </div>
+            </div>
+
+            <div>
+              <label
+                htmlFor="category"
+                className="block text-sm font-medium text-gray-700"
+              >
+                Category
+              </label>
+              <div className="mt-1">
+                <select
+                  id="category"
+                  name="category"
+                  required
+                  className="input"
+                  value={formData.category}
+                  onChange={handleChange}
+                >
+                  {CATEGORIES.map(category => (
+                    <option key={category} value={category}>
+                      {category}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label
+                htmlFor="tags"
+                className="block text-sm font-medium text-gray-700"
+              >
+                Tags
+              </label>
+              <div className="mt-1">
+                <input
+                  type="text"
+                  id="tags"
+                  className="input"
+                  placeholder="Add tags (press Enter or comma to add)"
+                  value={tagInput}
+                  onChange={(e) => setTagInput(e.target.value)}
+                  onKeyDown={handleTagInputKeyDown}
+                />
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {formData.tags.map(tag => (
+                    <span
+                      key={tag}
+                      className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary-100 text-primary-800"
+                    >
+                      {tag}
+                      <button
+                        type="button"
+                        onClick={() => removeTag(tag)}
+                        className="ml-1 text-primary-600 hover:text-primary-800"
+                      >
+                        &times;
+                      </button>
+                    </span>
+                  ))}
+                </div>
               </div>
             </div>
 
@@ -78,13 +172,13 @@ function GenerateFAQ() {
               <div className="mt-1">
                 <textarea
                   id="product"
-                  name="product"
+                  name="productDetails"
                   rows={4}
                   required
                   className="input"
                   placeholder="Describe your product or service in detail. Include key features, benefits, and any specific areas you want the FAQ to cover."
-                  value={productDetails}
-                  onChange={(e) => setProductDetails(e.target.value)}
+                  value={formData.productDetails}
+                  onChange={handleChange}
                 />
               </div>
             </div>
@@ -134,6 +228,8 @@ function GenerateFAQ() {
             <li>Mention any unique selling propositions</li>
             <li>Add technical specifications if relevant</li>
             <li>Include pricing tiers or business model information</li>
+            <li>Use relevant tags to organize your FAQs</li>
+            <li>Choose the most appropriate category for better organization</li>
           </ul>
         </div>
       </div>

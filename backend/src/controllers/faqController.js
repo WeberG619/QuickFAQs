@@ -8,7 +8,7 @@ const openai = new OpenAI({
 
 exports.generateFAQ = async (req, res) => {
   try {
-    const { companyName, productDetails } = req.body;
+    const { companyName, productDetails, category, tags } = req.body;
     
     // Construct the prompt for GPT
     const prompt = `
@@ -16,6 +16,7 @@ exports.generateFAQ = async (req, res) => {
     
     Company Name: ${companyName}
     Product Details: ${productDetails}
+    Category: ${category || 'General'}
 
     Generate 5-7 of the most relevant questions and detailed answers that potential customers might have.
     Format the output in a clear, professional manner with questions numbered and answers properly spaced.
@@ -45,7 +46,9 @@ exports.generateFAQ = async (req, res) => {
       userId: req.user._id,
       companyName,
       productDetails,
-      generatedFAQ
+      generatedFAQ,
+      category: category || 'Other',
+      tags: tags || []
     });
 
     // Deduct credit if user is not premium
@@ -60,6 +63,8 @@ exports.generateFAQ = async (req, res) => {
         id: faq._id,
         companyName: faq.companyName,
         generatedFAQ: faq.generatedFAQ,
+        category: faq.category,
+        tags: faq.tags,
         createdAt: faq.createdAt
       }
     });
@@ -71,9 +76,29 @@ exports.generateFAQ = async (req, res) => {
 
 exports.getUserFAQs = async (req, res) => {
   try {
-    const faqs = await FAQ.find({ userId: req.user._id })
+    const { category, tags, search } = req.query;
+    
+    // Build query
+    const query = { userId: req.user._id };
+    
+    if (category) {
+      query.category = category;
+    }
+    
+    if (tags && tags.length > 0) {
+      query.tags = { $in: tags.split(',') };
+    }
+    
+    if (search) {
+      query.$or = [
+        { companyName: { $regex: search, $options: 'i' } },
+        { generatedFAQ: { $regex: search, $options: 'i' } }
+      ];
+    }
+
+    const faqs = await FAQ.find(query)
       .sort({ createdAt: -1 })
-      .select('companyName generatedFAQ createdAt');
+      .select('companyName generatedFAQ customizedFAQ category tags createdAt lastModified');
 
     res.json({ faqs });
   } catch (error) {
@@ -97,5 +122,60 @@ exports.getFAQById = async (req, res) => {
   } catch (error) {
     console.error('Get FAQ error:', error);
     res.status(500).json({ message: 'Error retrieving FAQ' });
+  }
+};
+
+exports.updateFAQ = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { customizedFAQ, category, tags } = req.body;
+
+    const faq = await FAQ.findOne({
+      _id: id,
+      userId: req.user._id
+    });
+
+    if (!faq) {
+      return res.status(404).json({ message: 'FAQ not found' });
+    }
+
+    if (customizedFAQ !== undefined) {
+      faq.customizedFAQ = customizedFAQ;
+    }
+    
+    if (category) {
+      faq.category = category;
+    }
+    
+    if (tags) {
+      faq.tags = tags;
+    }
+
+    await faq.save();
+
+    res.json({ faq });
+  } catch (error) {
+    console.error('Update FAQ error:', error);
+    res.status(500).json({ message: 'Error updating FAQ' });
+  }
+};
+
+exports.deleteFAQ = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const faq = await FAQ.findOneAndDelete({
+      _id: id,
+      userId: req.user._id
+    });
+
+    if (!faq) {
+      return res.status(404).json({ message: 'FAQ not found' });
+    }
+
+    res.json({ message: 'FAQ deleted successfully' });
+  } catch (error) {
+    console.error('Delete FAQ error:', error);
+    res.status(500).json({ message: 'Error deleting FAQ' });
   }
 };

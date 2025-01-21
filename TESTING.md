@@ -2,25 +2,60 @@
 
 This guide covers testing practices, configuration, and examples for both the frontend and backend of QuickFAQs.
 
+## Testing Overview
+
+### Test Categories
+
+1. **Unit Tests**
+   - Individual components and functions
+   - Isolated business logic
+   - Utility functions
+
+2. **Integration Tests**
+   - API endpoints
+   - Component interactions
+   - Database operations
+
+3. **End-to-End Tests**
+   - User flows
+   - System integration
+   - Browser compatibility
+
+4. **Performance Tests**
+   - Load testing
+   - Stress testing
+   - Scalability testing
+
 ## Backend Testing
 
 ### Setup
 
-1. Install testing dependencies:
+1. **Install testing dependencies**:
    ```bash
    cd backend
-   npm install --save-dev jest supertest mongodb-memory-server
+   npm install --save-dev jest supertest mongodb-memory-server @types/jest
    ```
 
-2. Configure test script in package.json:
-   ```json
-   {
-     "scripts": {
-       "test": "jest",
-       "test:watch": "jest --watch",
-       "test:coverage": "jest --coverage"
+2. **Configure Jest**:
+   ```javascript
+   // jest.config.js
+   module.exports = {
+     testEnvironment: 'node',
+     setupFilesAfterEnv: ['./tests/setup.js'],
+     collectCoverageFrom: [
+       'src/**/*.js',
+       '!src/config/**',
+       '!src/scripts/**'
+     ],
+     coverageThreshold: {
+       global: {
+         statements: 80,
+         branches: 80,
+         functions: 80,
+         lines: 80
+       }
      }
-   }
+   };
    ```
 
 ### Test Structure
@@ -28,296 +63,293 @@ This guide covers testing practices, configuration, and examples for both the fr
 ```
 backend/
 ├── tests/
-│   ├── setup.js                 # Database setup
-│   ├── setupAfterEnv.js        # Global test setup
-│   ├── controllers/
-│   │   ├── authController.test.js
-│   │   ├── faqController.test.js
-│   │   └── paymentController.test.js
-│   ├── models/
-│   │   ├── User.test.js
-│   │   └── FAQ.test.js
-│   ├── middlewares/
+│   ├── setup.js                 # Test setup
+│   ├── fixtures/               # Test data
+│   │   ├── users.js
+│   │   └── faqs.js
+│   ├── integration/           # Integration tests
 │   │   ├── auth.test.js
-│   │   └── error.test.js
-│   └── utils/
-│       └── helpers.test.js
+│   │   └── faq.test.js
+│   ├── unit/                 # Unit tests
+│   │   ├── services/
+│   │   ├── utils/
+│   │   └── models/
+│   └── e2e/                  # E2E tests
 ```
 
-### Running Tests
+### Testing FAQ Generation
 
-```bash
-# Run all tests
-npm test
+1. **Unit Tests**:
+   ```javascript
+   // tests/unit/services/faqService.test.js
+   describe('FAQ Generation Service', () => {
+     it('generates FAQ with correct category and tags', async () => {
+       const input = {
+         companyName: 'Test Corp',
+         productDetails: 'Test product details',
+         category: 'Product',
+         tags: ['software', 'tech']
+       };
+       
+       const result = await generateFAQ(input);
+       
+       expect(result.category).toBe('Product');
+       expect(result.tags).toEqual(['software', 'tech']);
+       expect(result.generatedFAQ).toBeTruthy();
+     });
+     
+     it('handles empty tags array', async () => {
+       const input = {
+         companyName: 'Test Corp',
+         productDetails: 'Test product details',
+         category: 'Product',
+         tags: []
+       };
+       
+       const result = await generateFAQ(input);
+       
+       expect(result.tags).toEqual([]);
+     });
+   });
+   ```
 
-# Run tests in watch mode
-npm run test:watch
-
-# Generate coverage report
-npm run test:coverage
-```
-
-### Best Practices
-
-1. **Database Testing**
-   - Use mongodb-memory-server for testing
-   - Clear database between tests
-   - Use separate test database
-
-2. **API Testing**
-   - Use supertest for endpoint testing
-   - Test both success and error cases
-   - Validate response structure
-
-3. **Authentication Testing**
-   - Test protected routes
-   - Verify token validation
-   - Test permission levels
-
-4. **Error Handling**
-   - Test error middleware
-   - Verify error responses
-   - Check error logging
+2. **Integration Tests**:
+   ```javascript
+   // tests/integration/faq.test.js
+   describe('FAQ API', () => {
+     it('creates FAQ with category and tags', async () => {
+       const response = await request(app)
+         .post('/api/faq/generate')
+         .set('Authorization', `Bearer ${token}`)
+         .send({
+           companyName: 'Test Corp',
+           productDetails: 'Test details',
+           category: 'Product',
+           tags: ['tech']
+         });
+       
+       expect(response.status).toBe(200);
+       expect(response.body.faq.category).toBe('Product');
+       expect(response.body.faq.tags).toContain('tech');
+     });
+     
+     it('filters FAQs by category', async () => {
+       const response = await request(app)
+         .get('/api/faq/user')
+         .set('Authorization', `Bearer ${token}`)
+         .query({ category: 'Product' });
+       
+       expect(response.status).toBe(200);
+       expect(response.body.faqs).toEqual(
+         expect.arrayContaining([
+           expect.objectContaining({ category: 'Product' })
+         ])
+       );
+     });
+     
+     it('searches FAQs by text', async () => {
+       const response = await request(app)
+         .get('/api/faq/user')
+         .set('Authorization', `Bearer ${token}`)
+         .query({ search: 'test' });
+       
+       expect(response.status).toBe(200);
+       expect(response.body.faqs.length).toBeGreaterThan(0);
+     });
+   });
+   ```
 
 ## Frontend Testing
 
-### Setup
+### Component Testing
 
-1. Install testing dependencies:
-   ```bash
-   cd frontend
-   npm install --save-dev @testing-library/react @testing-library/jest-dom @testing-library/user-event
-   ```
-
-2. Configure test script in package.json:
-   ```json
-   {
-     "scripts": {
-       "test": "react-scripts test",
-       "test:coverage": "react-scripts test --coverage --watchAll=false"
-     }
-   }
-   ```
-
-### Test Structure
-
-```
-frontend/
-├── src/
-│   ├── test/
-│   │   ├── setup.js            # Global setup
-│   │   └── setupTests.js       # RTL setup
-│   ├── components/
-│   │   └── __tests__/
-│   │       ├── Navbar.test.js
-│   │       └── Footer.test.js
-│   ├── pages/
-│   │   └── __tests__/
-│   │       ├── Home.test.js
-│   │       └── Dashboard.test.js
-│   └── contexts/
-│       └── __tests__/
-│           └── AuthContext.test.js
-```
-
-### Component Testing Best Practices
-
-1. **Rendering Tests**
+1. **FAQ Generation Form**:
    ```javascript
-   it('renders component correctly', () => {
-     render(<MyComponent />);
-     expect(screen.getByText('Expected Text')).toBeInTheDocument();
-   });
-   ```
+   // src/components/__tests__/GenerateFAQForm.test.js
+   import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+   import userEvent from '@testing-library/user-event';
+   import GenerateFAQForm from '../GenerateFAQForm';
 
-2. **User Interaction**
-   ```javascript
-   it('handles user interaction', async () => {
-     render(<MyComponent />);
-     await userEvent.click(screen.getByRole('button'));
-     expect(screen.getByText('Updated Text')).toBeInTheDocument();
-   });
-   ```
-
-3. **Async Operations**
-   ```javascript
-   it('handles async operations', async () => {
-     render(<MyComponent />);
-     await waitFor(() => {
-       expect(screen.getByText('Loaded Data')).toBeInTheDocument();
+   describe('GenerateFAQForm', () => {
+     it('submits form with category and tags', async () => {
+       const onSubmit = jest.fn();
+       render(<GenerateFAQForm onSubmit={onSubmit} />);
+       
+       // Fill form
+       await userEvent.type(
+         screen.getByLabelText(/company name/i),
+         'Test Corp'
+       );
+       await userEvent.type(
+         screen.getByLabelText(/product details/i),
+         'Test details'
+       );
+       await userEvent.selectOptions(
+         screen.getByLabelText(/category/i),
+         'Product'
+       );
+       
+       // Add tags
+       const tagInput = screen.getByPlaceholderText(/add tags/i);
+       await userEvent.type(tagInput, 'tech{enter}');
+       await userEvent.type(tagInput, 'software{enter}');
+       
+       // Submit form
+       await userEvent.click(screen.getByRole('button', { name: /generate/i }));
+       
+       expect(onSubmit).toHaveBeenCalledWith({
+         companyName: 'Test Corp',
+         productDetails: 'Test details',
+         category: 'Product',
+         tags: ['tech', 'software']
+       });
+     });
+     
+     it('validates required fields', async () => {
+       render(<GenerateFAQForm onSubmit={jest.fn()} />);
+       
+       await userEvent.click(screen.getByRole('button', { name: /generate/i }));
+       
+       expect(screen.getByText(/company name is required/i)).toBeInTheDocument();
+       expect(screen.getByText(/product details are required/i)).toBeInTheDocument();
      });
    });
    ```
 
-### Context Testing
-
-1. **Provider Testing**
+2. **FAQ List Component**:
    ```javascript
-   const wrapper = ({ children }) => (
-     <AuthProvider>{children}</AuthProvider>
-   );
-
-   it('provides context value', () => {
-     render(<TestComponent />, { wrapper });
-     // Test context behavior
-   });
-   ```
-
-2. **Hook Testing**
-   ```javascript
-   const { result } = renderHook(() => useAuth(), { wrapper });
-   expect(result.current.user).toBe(null);
-   ```
-
-## Integration Testing
-
-### API Integration Tests
-
-1. **Setup Test Environment**
-   ```javascript
-   const app = require('../src/app');
-   const request = require('supertest');
-
-   describe('API Integration', () => {
-     it('completes full workflow', async () => {
-       // Test complete user journey
+   // src/components/__tests__/FAQList.test.js
+   describe('FAQList', () => {
+     const faqs = [
+       {
+         _id: '1',
+         companyName: 'Test Corp',
+         category: 'Product',
+         tags: ['tech'],
+         generatedFAQ: 'Test FAQ content'
+       }
+     ];
+     
+     it('filters FAQs by category', async () => {
+       render(<FAQList faqs={faqs} />);
+       
+       await userEvent.selectOptions(
+         screen.getByLabelText(/category/i),
+         'Product'
+       );
+       
+       expect(screen.getByText('Test Corp')).toBeInTheDocument();
+       expect(screen.getByText('tech')).toBeInTheDocument();
      });
-   });
-   ```
-
-2. **User Flow Testing**
-   ```javascript
-   it('handles user authentication flow', async () => {
-     // 1. Register user
-     const signup = await request(app)
-       .post('/api/auth/signup')
-       .send(userData);
-
-     // 2. Login
-     const login = await request(app)
-       .post('/api/auth/login')
-       .send(loginData);
-
-     // 3. Access protected route
-     const protected = await request(app)
-       .get('/api/protected')
-       .set('Authorization', `Bearer ${login.body.token}`);
-
-     expect(protected.status).toBe(200);
+     
+     it('exports FAQ to PDF', async () => {
+       const exportToPDF = jest.fn();
+       render(<FAQList faqs={faqs} onExportPDF={exportToPDF} />);
+       
+       await userEvent.click(screen.getByRole('button', { name: /export pdf/i }));
+       
+       expect(exportToPDF).toHaveBeenCalledWith(faqs[0]);
+     });
    });
    ```
 
 ## E2E Testing
 
-### Cypress Setup
+### Cypress Tests
 
-1. Install Cypress:
-   ```bash
-   npm install --save-dev cypress
+1. **FAQ Generation Flow**:
+   ```javascript
+   // cypress/integration/faq.spec.js
+   describe('FAQ Generation', () => {
+     beforeEach(() => {
+       cy.login();
+     });
+     
+     it('generates and manages FAQs', () => {
+       // Navigate to generate page
+       cy.visit('/generate');
+       
+       // Fill the form
+       cy.get('[data-testid="company-name"]').type('Test Corp');
+       cy.get('[data-testid="product-details"]')
+         .type('This is a test product description');
+       cy.get('[data-testid="category-select"]').select('Product');
+       cy.get('[data-testid="tag-input"]').type('tech{enter}');
+       
+       // Generate FAQ
+       cy.get('[data-testid="generate-button"]').click();
+       
+       // Verify generation
+       cy.url().should('include', '/dashboard');
+       cy.contains('FAQ generated successfully');
+       
+       // Filter FAQs
+       cy.get('[data-testid="category-filter"]').select('Product');
+       cy.get('[data-testid="faq-list"]')
+         .should('contain', 'Test Corp')
+         .and('contain', 'tech');
+       
+       // Export FAQ
+       cy.get('[data-testid="export-pdf"]').first().click();
+       cy.readFile('downloads/faq.pdf').should('exist');
+     });
+   });
    ```
-
-2. Add Cypress scripts:
-   ```json
-   {
-     "scripts": {
-       "cypress:open": "cypress open",
-       "cypress:run": "cypress run"
-     }
-   }
-   ```
-
-### Example E2E Test
-
-```javascript
-describe('User Authentication', () => {
-  it('should allow user to sign up and login', () => {
-    // Visit home page
-    cy.visit('/');
-
-    // Sign up
-    cy.get('[data-testid="signup-button"]').click();
-    cy.get('[data-testid="name-input"]').type('Test User');
-    cy.get('[data-testid="email-input"]').type('test@example.com');
-    cy.get('[data-testid="password-input"]').type('password123');
-    cy.get('[data-testid="signup-submit"]').click();
-
-    // Verify redirect to dashboard
-    cy.url().should('include', '/dashboard');
-    cy.get('[data-testid="user-name"]').should('contain', 'Test User');
-  });
-});
-```
-
-## CI/CD Integration
-
-### GitHub Actions Configuration
-
-```yaml
-name: Tests
-
-on: [push, pull_request]
-
-jobs:
-  test:
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v2
-      
-      - name: Setup Node.js
-        uses: actions/setup-node@v2
-        with:
-          node-version: '18'
-
-      - name: Install Dependencies
-        run: |
-          cd backend && npm install
-          cd ../frontend && npm install
-
-      - name: Run Backend Tests
-        run: cd backend && npm test
-
-      - name: Run Frontend Tests
-        run: cd frontend && npm test -- --watchAll=false
-
-      - name: Upload Coverage
-        uses: codecov/codecov-action@v2
-```
 
 ## Performance Testing
 
-### Backend Performance Tests
+### Load Testing
+
+1. **K6 Load Test**:
+   ```javascript
+   // tests/performance/load-test.js
+   import http from 'k6/http';
+   import { check, sleep } from 'k6';
+
+   export const options = {
+     stages: [
+       { duration: '30s', target: 20 },
+       { duration: '1m', target: 20 },
+       { duration: '30s', target: 0 }
+     ],
+     thresholds: {
+       http_req_duration: ['p(95)<500']
+     }
+   };
+
+   export default function() {
+     const BASE_URL = 'http://localhost:4000';
+     
+     // Test FAQ generation
+     const payload = {
+       companyName: 'Test Corp',
+       productDetails: 'Test details',
+       category: 'Product',
+       tags: ['tech']
+     };
+     
+     const res = http.post(`${BASE_URL}/api/faq/generate`, payload);
+     check(res, {
+       'status is 200': (r) => r.status === 200,
+       'response time OK': (r) => r.timings.duration < 500
+     });
+     
+     sleep(1);
+   }
+   ```
+
+## Monitoring Tests
+
+### Prometheus Metrics Tests
 
 ```javascript
-describe('API Performance', () => {
-  it('handles multiple concurrent requests', async () => {
-    const requests = Array(50).fill().map(() =>
-      request(app).get('/api/endpoint')
-    );
+describe('Metrics Endpoint', () => {
+  it('exposes FAQ generation metrics', async () => {
+    const response = await request(app).get('/metrics');
     
-    const responses = await Promise.all(requests);
-    responses.forEach(response => {
-      expect(response.status).toBe(200);
-    });
-  });
-});
-```
-
-### Frontend Performance Tests
-
-```javascript
-describe('Component Performance', () => {
-  it('renders large lists efficiently', () => {
-    const items = Array(1000).fill().map((_, i) => ({
-      id: i,
-      text: `Item ${i}`
-    }));
-
-    const startTime = performance.now();
-    render(<ListView items={items} />);
-    const endTime = performance.now();
-
-    expect(endTime - startTime).toBeLessThan(100);
+    expect(response.status).toBe(200);
+    expect(response.text).toContain('faq_generation_total');
+    expect(response.text).toContain('faq_generation_duration_seconds');
   });
 });
 ```
@@ -328,63 +360,106 @@ describe('Component Performance', () => {
 
 ```javascript
 describe('Security Headers', () => {
-  it('includes security headers', async () => {
+  it('includes required security headers', async () => {
     const response = await request(app).get('/');
     
     expect(response.headers).toMatchObject({
+      'strict-transport-security': 'max-age=31536000; includeSubDomains',
+      'x-content-type-options': 'nosniff',
       'x-frame-options': 'DENY',
-      'x-xss-protection': '1; mode=block',
-      'x-content-type-options': 'nosniff'
+      'content-security-policy': expect.stringContaining("default-src 'self'")
     });
+  });
+  
+  it('rate limits FAQ generation', async () => {
+    const requests = Array(10).fill().map(() =>
+      request(app)
+        .post('/api/faq/generate')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          companyName: 'Test Corp',
+          productDetails: 'Test details'
+        })
+    );
+    
+    const responses = await Promise.all(requests);
+    const tooManyRequests = responses.filter(r => r.status === 429);
+    
+    expect(tooManyRequests.length).toBeGreaterThan(0);
   });
 });
 ```
 
-## Monitoring Test Coverage
+## Test Automation
 
-1. View coverage report:
-   ```bash
-   npm run test:coverage
-   ```
+### GitHub Actions Workflow
 
-2. Coverage thresholds:
-   ```javascript
-   // jest.config.js
-   module.exports = {
-     coverageThreshold: {
-       global: {
-         branches: 80,
-         functions: 80,
-         lines: 80,
-         statements: 80
-       }
-     }
-   };
-   ```
+```yaml
+name: Test Suite
 
-## Troubleshooting Tests
+on: [push, pull_request]
 
-1. **Common Issues**
-   - Async operation timing
-   - Component re-renders
-   - Context provider missing
-   - Database connection issues
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    services:
+      mongodb:
+        image: mongo:4.4
+        ports:
+          - 27017:27017
+          
+    steps:
+      - uses: actions/checkout@v2
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v2
+        with:
+          node-version: '18'
+          
+      - name: Install Dependencies
+        run: |
+          cd backend && npm install
+          cd ../frontend && npm install
+          
+      - name: Run Backend Tests
+        run: cd backend && npm test
+        
+      - name: Run Frontend Tests
+        run: cd frontend && npm test -- --watchAll=false
+        
+      - name: Run E2E Tests
+        run: |
+          npm start & npx wait-on http://localhost:3000
+          npx cypress run
+          
+      - name: Upload Coverage
+        uses: codecov/codecov-action@v2
+```
 
-2. **Debug Tools**
-   ```javascript
-   // Add debug logs
-   console.log('Debug:', value);
-   
-   // Use test.only
-   it.only('should test this specific case', () => {
-     // Test code
-   });
-   ```
+## Best Practices
 
-## Continuous Improvement
+1. **Test Organization**
+   - Group tests logically
+   - Use descriptive test names
+   - Maintain test data fixtures
 
-1. Regular test review
-2. Coverage monitoring
-3. Performance benchmarking
-4. Security scanning
-5. Accessibility testing
+2. **Test Coverage**
+   - Aim for 80%+ coverage
+   - Focus on critical paths
+   - Include edge cases
+
+3. **Test Maintenance**
+   - Regular test reviews
+   - Update tests with code changes
+   - Remove obsolete tests
+
+4. **Performance Testing**
+   - Regular load testing
+   - Monitor response times
+   - Test scalability
+
+5. **Security Testing**
+   - Regular security scans
+   - Penetration testing
+   - Dependency audits

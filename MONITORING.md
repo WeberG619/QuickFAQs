@@ -2,247 +2,249 @@
 
 This guide covers the monitoring, logging, and error tracking setup for both the frontend and backend of QuickFAQs.
 
-## Backend Monitoring
+## Monitoring Stack Overview
 
-### Logging (Winston)
+QuickFAQs uses a comprehensive monitoring stack:
 
-The backend uses Winston for logging with different transports based on the environment:
+1. **Prometheus & Grafana**: For metrics collection and visualization
+2. **ELK Stack**: For centralized logging
+3. **Docker & Docker Compose**: For containerization and orchestration
 
-1. Configure environment variables:
-   ```env
-   LOG_LEVEL=info
-   ```
+### Quick Start
 
-2. Log levels used:
-   - error: For errors and exceptions
-   - warn: For warnings and potential issues
-   - info: For general information
-   - debug: For detailed debugging information
+```bash
+# Start the entire stack
+docker-compose up -d
 
-3. Log files location:
-   - /logs/error.log: For error-level logs
-   - /logs/combined.log: For all logs
+# Access monitoring interfaces:
+- Grafana: http://localhost:3001 (admin/admin)
+- Prometheus: http://localhost:9090
+- Kibana: http://localhost:5601
+```
 
-### Metrics (Prometheus)
-
-The backend exposes metrics for Prometheus:
-
-1. Metrics endpoint: `/metrics`
-
-2. Available metrics:
-   - HTTP request duration
-   - Total HTTP requests
-   - Node.js metrics (memory, CPU, etc.)
-
-3. Grafana dashboard setup:
-   ```bash
-   # Import the provided dashboard
-   curl -X POST -H "Content-Type: application/json" -d @grafana-dashboard.json http://localhost:3000/api/dashboards/db
-   ```
-
-### Error Tracking (Sentry)
-
-1. Configure Sentry DSN:
-   ```env
-   SENTRY_DSN=your_sentry_dsn
-   ```
-
-2. Error categories:
-   - Operational errors: Handled gracefully
-   - Programming errors: Captured and reported
-   - Unhandled rejections
-   - Uncaught exceptions
-
-## Frontend Monitoring
-
-### Error Tracking (Sentry)
-
-1. Configure environment variables:
-   ```env
-   REACT_APP_SENTRY_DSN=your_sentry_dsn
-   ```
-
-2. Features:
-   - Automatic error capturing
-   - Custom error boundaries
-   - Performance monitoring
-   - User tracking
-
-### Performance Monitoring
-
-1. Web Vitals tracking:
-   - Cumulative Layout Shift (CLS)
-   - First Input Delay (FID)
-   - Largest Contentful Paint (LCP)
-   - First Contentful Paint (FCP)
-   - Time to First Byte (TTFB)
-
-2. Custom performance marks:
-   ```javascript
-   import { performanceMark } from './utils/performance';
-   
-   performanceMark.start('operation-name');
-   // ... operation ...
-   performanceMark.end('operation-name');
-   ```
-
-3. Resource timing analysis:
-   - Automatic monitoring of slow resource loads
-   - Memory usage monitoring
-   - Network request timing
-
-## Monitoring Dashboard Setup
-
-### Grafana
-
-1. Install Grafana:
-   ```bash
-   docker run -d -p 3000:3000 grafana/grafana
-   ```
-
-2. Configure data sources:
-   - Prometheus for metrics
-   - Loki for logs
-
-3. Import dashboards:
-   - Node.js Application Dashboard
-   - HTTP Request Dashboard
-   - Error Tracking Dashboard
+## Monitoring Components
 
 ### Prometheus
 
-1. Install Prometheus:
-   ```bash
-   docker run -d -p 9090:9090 prom/prometheus
+- **Port**: 9090
+- **Config**: `monitoring/prometheus/prometheus.yml`
+- **Metrics**:
+  - HTTP request duration
+  - Total HTTP requests
+  - Node.js metrics (memory, CPU)
+  - MongoDB metrics
+  - Custom business metrics
+
+### Grafana
+
+- **Port**: 3001
+- **Default Login**: admin/admin
+- **Features**:
+  - Pre-configured dashboards
+  - Prometheus & Elasticsearch datasources
+  - Automated provisioning
+  - Alert configuration
+
+### ELK Stack
+
+#### Elasticsearch
+- **Port**: 9200
+- **Features**:
+  - Document storage
+  - Full-text search
+  - Real-time analytics
+
+#### Logstash
+- **Ports**: 
+  - 5044 (Beats)
+  - 5000 (TCP)
+  - 9600 (API)
+- **Config**: 
+  - `monitoring/logstash/config/logstash.yml`
+  - `monitoring/logstash/pipeline/logstash.conf`
+
+#### Kibana
+- **Port**: 5601
+- **Features**:
+  - Log visualization
+  - Search interface
+  - Dashboard creation
+
+## Application Monitoring
+
+### Backend Monitoring
+
+1. **Metrics Collection**:
+   ```javascript
+   // Example metric collection
+   const requestDuration = new client.Histogram({
+     name: 'http_request_duration_seconds',
+     help: 'Duration of HTTP requests in seconds',
+     labelNames: ['method', 'route', 'status']
+   });
    ```
 
-2. Configure prometheus.yml:
-   ```yaml
-   scrape_configs:
-     - job_name: 'quickfaqs-backend'
-       static_configs:
-         - targets: ['localhost:4000']
+2. **Logging**:
+   ```javascript
+   // Example structured logging
+   logger.info('API request', {
+     method: req.method,
+     path: req.path,
+     duration: requestDuration,
+     userId: req.user?.id
+   });
    ```
 
-### Alert Configuration
+### Frontend Monitoring
 
-1. Set up alert rules in Grafana:
-   - High error rate
-   - Slow response time
-   - Memory usage threshold
-   - CPU usage threshold
+1. **Performance Metrics**:
+   - First Contentful Paint (FCP)
+   - Largest Contentful Paint (LCP)
+   - Time to Interactive (TTI)
+   - Cumulative Layout Shift (CLS)
 
-2. Configure alert channels:
-   - Email notifications
-   - Slack notifications
-   - PagerDuty integration
+2. **Error Tracking**:
+   ```javascript
+   // Example error boundary
+   class ErrorBoundary extends React.Component {
+     componentDidCatch(error, errorInfo) {
+       logger.error('Frontend Error', {
+         error,
+         errorInfo,
+         component: this.props.componentName
+       });
+     }
+   }
+   ```
 
-## Health Checks
+## Alert Configuration
 
-### Backend Health Check
+### Grafana Alerts
 
-Endpoint: `/api/health`
-```json
-{
-  "status": "up",
-  "uptime": "10h 30m",
-  "memory": {
-    "used": "150MB",
-    "total": "512MB"
-  },
-  "responseTime": "45ms"
-}
-```
+1. **High Error Rate**:
+   - Condition: >5% error rate over 5 minutes
+   - Severity: Critical
+   - Notification: Email + Slack
 
-### Frontend Health Check
+2. **API Latency**:
+   - Condition: >500ms p95 over 5 minutes
+   - Severity: Warning
+   - Notification: Slack
 
-Automated checks for:
-- API connectivity
-- Resource loading
-- JavaScript execution
-- Memory usage
+3. **Memory Usage**:
+   - Condition: >85% usage
+   - Severity: Warning
+   - Notification: Email
 
 ## Maintenance Procedures
 
-### Log Rotation
+### Log Management
 
-1. Backend logs:
-   - Maximum file size: 5MB
-   - Keep last 5 files
-   - Daily rotation
+1. **Rotation Policy**:
+   ```yaml
+   logging:
+     driver: "json-file"
+     options:
+       max-size: "10m"
+       max-file: "3"
+   ```
 
-2. Access logs:
-   - Maximum file size: 10MB
-   - Keep last 7 files
-   - Daily rotation
+2. **Cleanup Policy**:
+   - Elasticsearch indices: 30 days retention
+   - Prometheus metrics: 15 days retention
+   - Container logs: 3 files, 10MB each
 
-### Metric Retention
+### Backup Procedures
 
-1. Prometheus:
-   - Storage retention: 15 days
-   - Compaction: Enabled
-   - Storage size: 30GB
+1. **Volume Backups**:
+   ```bash
+   # Backup monitoring data
+   docker run --rm \
+     --volumes-from prometheus \
+     -v $(pwd)/backup:/backup \
+     alpine tar cvf /backup/prometheus-backup.tar /prometheus
+   ```
 
-2. Grafana:
-   - Dashboard snapshots: 30 days
-   - Alert history: 90 days
+2. **Configuration Backups**:
+   - Store all configurations in version control
+   - Regular backups of Grafana dashboards
+   - Export of Kibana visualizations
 
-## Troubleshooting
+## Troubleshooting Guide
 
 ### Common Issues
 
-1. High Error Rate:
+1. **High Memory Usage**:
    ```bash
-   # Check error logs
-   tail -f logs/error.log
+   # Check container stats
+   docker stats
    
-   # Check metrics
-   curl localhost:4000/metrics | grep http_requests_total
+   # Check Elasticsearch heap
+   curl -X GET "localhost:9200/_nodes/stats/jvm?pretty"
    ```
 
-2. Performance Issues:
-   - Check resource usage
-   - Analyze slow queries
-   - Review network latency
+2. **Slow Queries**:
+   ```bash
+   # Check MongoDB logs
+   docker-compose logs mongo
+   
+   # Check slow query log in Kibana
+   ```
 
-3. Memory Leaks:
-   - Monitor heap usage
-   - Review garbage collection metrics
-   - Check for memory-intensive operations
+3. **Container Issues**:
+   ```bash
+   # Check container health
+   docker-compose ps
+   
+   # View container logs
+   docker-compose logs [service_name]
+   ```
 
-## Best Practices
+### Security Considerations
 
-1. Logging:
-   - Use appropriate log levels
-   - Include relevant context
-   - Avoid sensitive information
-   - Structured logging format
+1. **Access Control**:
+   - Use strong passwords for all services
+   - Implement role-based access in Grafana
+   - Secure Elasticsearch with X-Pack
 
-2. Monitoring:
-   - Set meaningful thresholds
-   - Monitor trends over time
-   - Regular dashboard reviews
-   - Alert tuning
+2. **Network Security**:
+   - Internal-only access to Prometheus
+   - HTTPS for external access
+   - Regular security audits
 
-3. Error Tracking:
-   - Group similar errors
-   - Set error priorities
-   - Regular error review
-   - Fix root causes
+3. **Data Protection**:
+   - Regular backups
+   - Data encryption at rest
+   - Secure credential management
 
-## Security Monitoring
+## Development Guidelines
 
-1. Failed Authentication:
-   - Track failed login attempts
-   - Monitor suspicious patterns
-   - Alert on brute force attempts
+### Adding New Metrics
 
-2. API Usage:
-   - Monitor rate limits
-   - Track API key usage
-   - Detect abnormal patterns
+1. **Define Metric**:
+   ```javascript
+   const newMetric = new prometheus.Counter({
+     name: 'my_metric_name',
+     help: 'Description of the metric'
+   });
+   ```
 
-3. Security Headers:
-   - Regular security scans
-   - CORS configuration
-   - CSP violations
+2. **Update Grafana**:
+   - Add to relevant dashboard
+   - Configure appropriate alerts
+   - Document in this guide
+
+### Adding New Logs
+
+1. **Structured Logging**:
+   ```javascript
+   logger.info('Event name', {
+     context: 'relevant_context',
+     metadata: 'additional_info'
+   });
+   ```
+
+2. **Log Processing**:
+   - Update Logstash pipeline if needed
+   - Create Kibana visualizations
+   - Set up relevant alerts

@@ -19,6 +19,19 @@ const faqSchema = new mongoose.Schema({
     type: String,
     required: true
   },
+  customizedFAQ: {
+    type: String,
+    default: null
+  },
+  tags: [{
+    type: String,
+    trim: true
+  }],
+  category: {
+    type: String,
+    enum: ['Product', 'Service', 'Technical', 'Support', 'Other'],
+    default: 'Other'
+  },
   createdAt: {
     type: Date,
     default: Date.now
@@ -27,6 +40,12 @@ const faqSchema = new mongoose.Schema({
     type: Date,
     default: Date.now
   }
+});
+
+// Update lastModified on save
+faqSchema.pre('save', function(next) {
+  this.lastModified = new Date();
+  next();
 });
 
 module.exports = mongoose.model('FAQ', faqSchema);

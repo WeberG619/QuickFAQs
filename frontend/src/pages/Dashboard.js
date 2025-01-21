@@ -3,10 +3,19 @@ import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../services/api';
 import toast from 'react-hot-toast';
+import { exportToMarkdown, exportToPDF } from '../utils/exportUtils';
+
+const CATEGORIES = ['All', 'Product', 'Service', 'Technical', 'Support', 'Other'];
 
 function Dashboard() {
   const [faqs, setFaqs] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [filters, setFilters] = useState({
+    category: 'All',
+    search: '',
+    tags: []
+  });
+  const [editingFaq, setEditingFaq] = useState(null);
   const { user } = useAuth();
   const location = useLocation();
 
@@ -16,17 +25,57 @@ function Dashboard() {
     if (location.state?.newFaq) {
       toast.success('New FAQ added to your dashboard!');
     }
-  }, [location.state]);
+  }, [location.state, filters]);
 
   const fetchFAQs = async () => {
     try {
-      const response = await api.get('/faq/user');
+      const params = new URLSearchParams();
+      if (filters.category !== 'All') {
+        params.append('category', filters.category);
+      }
+      if (filters.search) {
+        params.append('search', filters.search);
+      }
+      if (filters.tags.length > 0) {
+        params.append('tags', filters.tags.join(','));
+      }
+
+      const response = await api.get(`/faq/user?${params.toString()}`);
       setFaqs(response.data.faqs);
     } catch (error) {
       console.error('Error fetching FAQs:', error);
       toast.error('Failed to load your FAQs');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleUpdateFaq = async (faqId, updates) => {
+    try {
+      const response = await api.patch(`/faq/${faqId}`, updates);
+      setFaqs(faqs.map(faq => 
+        faq._id === faqId ? response.data.faq : faq
+      ));
+      toast.success('FAQ updated successfully!');
+      setEditingFaq(null);
+    } catch (error) {
+      console.error('Error updating FAQ:', error);
+      toast.error('Failed to update FAQ');
+    }
+  };
+
+  const handleDeleteFaq = async (faqId) => {
+    if (!window.confirm('Are you sure you want to delete this FAQ?')) {
+      return;
+    }
+
+    try {
+      await api.delete(`/faq/${faqId}`);
+      setFaqs(faqs.filter(faq => faq._id !== faqId));
+      toast.success('FAQ deleted successfully!');
+    } catch (error) {
+      console.error('Error deleting FAQ:', error);
+      toast.error('Failed to delete FAQ');
     }
   };
 
@@ -64,6 +113,40 @@ function Dashboard() {
           >
             Generate New FAQ
           </Link>
+        </div>
+      </div>
+
+      {/* Filters Section */}
+      <div className="mt-8 bg-white shadow rounded-lg p-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <label htmlFor="category" className="block text-sm font-medium text-gray-700">
+              Category
+            </label>
+            <select
+              id="category"
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500"
+              value={filters.category}
+              onChange={(e) => setFilters({ ...filters, category: e.target.value })}
+            >
+              {CATEGORIES.map(category => (
+                <option key={category} value={category}>{category}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label htmlFor="search" className="block text-sm font-medium text-gray-700">
+              Search
+            </label>
+            <input
+              type="text"
+              id="search"
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500"
+              placeholder="Search FAQs..."
+              value={filters.search}
+              onChange={(e) => setFilters({ ...filters, search: e.target.value })}
+            />
+          </div>
         </div>
       </div>
 
@@ -108,27 +191,107 @@ function Dashboard() {
                       <h3 className="text-lg font-medium text-primary-600 truncate">
                         {faq.companyName}
                       </h3>
-                      <div className="ml-2 flex-shrink-0 flex">
-                        <p className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
+                      <div className="ml-2 flex-shrink-0 flex space-x-2">
+                        <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
+                          {faq.category}
+                        </span>
+                        <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
                           {new Date(faq.createdAt).toLocaleDateString()}
-                        </p>
+                        </span>
                       </div>
                     </div>
+                    
+                    {/* Tags */}
+                    {faq.tags && faq.tags.length > 0 && (
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {faq.tags.map(tag => (
+                          <span
+                            key={tag}
+                            className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800"
+                          >
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+
                     <div className="mt-2">
-                      <div className="text-sm text-gray-600 whitespace-pre-wrap">
-                        {faq.generatedFAQ}
-                      </div>
+                      {editingFaq === faq._id ? (
+                        <textarea
+                          className="w-full p-2 border rounded-md"
+                          rows="10"
+                          value={faq.customizedFAQ || faq.generatedFAQ}
+                          onChange={(e) => {
+                            const updatedFaqs = faqs.map(f => 
+                              f._id === faq._id 
+                                ? { ...f, customizedFAQ: e.target.value }
+                                : f
+                            );
+                            setFaqs(updatedFaqs);
+                          }}
+                        />
+                      ) : (
+                        <div className="text-sm text-gray-600 whitespace-pre-wrap">
+                          {faq.customizedFAQ || faq.generatedFAQ}
+                        </div>
+                      )}
                     </div>
+
                     <div className="mt-3 flex items-center justify-end space-x-3">
-                      <button
-                        onClick={() => {
-                          navigator.clipboard.writeText(faq.generatedFAQ);
-                          toast.success('FAQ copied to clipboard!');
-                        }}
-                        className="btn-secondary text-sm"
-                      >
-                        Copy to Clipboard
-                      </button>
+                      {editingFaq === faq._id ? (
+                        <>
+                          <button
+                            onClick={() => handleUpdateFaq(faq._id, {
+                              customizedFAQ: faq.customizedFAQ
+                            })}
+                            className="btn-primary text-sm"
+                          >
+                            Save
+                          </button>
+                          <button
+                            onClick={() => setEditingFaq(null)}
+                            className="btn-secondary text-sm"
+                          >
+                            Cancel
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button
+                            onClick={() => setEditingFaq(faq._id)}
+                            className="btn-secondary text-sm"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => handleDeleteFaq(faq._id)}
+                            className="btn-danger text-sm"
+                          >
+                            Delete
+                          </button>
+                          <button
+                            onClick={() => exportToMarkdown(faq)}
+                            className="btn-secondary text-sm"
+                          >
+                            Export MD
+                          </button>
+                          <button
+                            onClick={() => exportToPDF(faq)}
+                            className="btn-secondary text-sm"
+                          >
+                            Export PDF
+                          </button>
+                          <button
+                            onClick={() => {
+                              navigator.clipboard.writeText(faq.customizedFAQ || faq.generatedFAQ);
+                              toast.success('FAQ copied to clipboard!');
+                            }}
+                            className="btn-secondary text-sm"
+                          >
+                            Copy
+                          </button>
+                        </>
+                      )}
                     </div>
                   </div>
                 </li>
