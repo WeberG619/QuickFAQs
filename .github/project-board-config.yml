@@ -1,0 +1,45 @@
+name: QuickFAQs Development
+type: project_v2
+description: AI-Powered FAQ Generation Platform Development
+
+columns:
+  - name: 📋 Backlog
+    type: todo
+    description: Upcoming tasks and features
+  
+  - name: 🎯 Sprint Planning
+    type: in_progress
+    description: Tasks planned for current sprint
+  
+  - name: 🚧 In Progress
+    type: in_progress
+    description: Tasks currently being worked on
+  
+  - name: 👀 Review
+    type: in_progress
+    description: Tasks ready for review
+  
+  - name: ✅ Done
+    type: done
+    description: Completed tasks
+
+labels:
+  - name: bug
+    color: d73a4a
+    description: Something isn't working
+  
+  - name: enhancement
+    color: a2eeef
+    description: New feature or request
+  
+  - name: documentation
+    color: 0075ca
+    description: Improvements or additions to documentation
+  
+  - name: high-priority
+    color: b60205
+    description: High priority tasks
+  
+  - name: testing
+    color: 0e8a16
+    description: Testing related tasks
